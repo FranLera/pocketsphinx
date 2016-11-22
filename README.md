@@ -25,7 +25,15 @@ FAQ
         ```
             sudo apt-get install xvfb
         ```   
-        
+  
+    * Now, you can add this in your .bashrc or run in a new terminal:
+
+        ``` 
+            Xvfb :1 &        
+        ```         
+    
+    
+    
     * Now, in the terminal where you are (ros)launching the pocksphinx
   
         ``` 
@@ -48,3 +56,5 @@ References>
 1. [Michael Ferguson](https://github.com/mikeferguson/pocketsphinx)
 2. [Using PocketSphinx with GStreamer and Python](http://cmusphinx.sourceforge.net/wiki/gstreamer)
 3. [Vadimreutskiy](https://github.com/vadimreutskiy/pocketsphinx)
+4. [Python GStreamer Tutorial](http://brettviren.github.io/pygst-tutorial-org/pygst-tutorial.pdf)
+5. [CMU pocketsphinx](https://github.com/cmusphinx/pocketsphinx/blob/master/)
