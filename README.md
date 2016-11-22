@@ -12,19 +12,26 @@ Tested in:
  
  
 Requirements:
+
 ```
 sudo apt-get install gstreamer1.0-pocketsphinx  gstreamer1.0-plugins-base  gst-inspect-1.0 pocketsphinx
 ```
+
 FAQ
+
 1. Issue associated with those robots with no display
-    * Install the [Xvfb − virtual framebuffer X server for X Version 11](https://www.x.org/archive/X11R7.6/doc/man/man1/Xvfb.1.xhtml)
+    * Install [Xvfb − virtual framebuffer X server for X Version 11](https://www.x.org/archive/X11R7.6/doc/man/man1/Xvfb.1.xhtml)
+        
         ```
             sudo apt-get install xvfb
         ```   
+        
     * Now, in the terminal where you are (ros)launching the pocksphinx
+    
         ``` 
             export DISPLAY=:1        
         ```   
+        
 2. 
   
 
