@@ -1,4 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
+
+# Copyright (c) 2008 Carnegie Mellon University.
+#
+# You may modify and redistribute this file under the same terms as
+# the CMU Sphinx system. See LICENSE for more information.
+
 
 """
 recognizer.py is a wrapper for pocketsphinx.
@@ -18,26 +24,48 @@ recognizer.py is a wrapper for pocketsphinx.
 import roslib; roslib.load_manifest('pocketsphinx')
 import rospy
 
-import pygtk
-pygtk.require('2.0')
-import gtk
 
-import gobject
-import pygst
-pygst.require('0.10')
-gobject.threads_init()
-import gst
+from gi import pygtkcompat
+import gi
+
+gi.require_version('Gst', '1.0')
+from gi.repository import GObject, Gst
+GObject.threads_init()
+Gst.init(None)
+    
+gst = Gst
+    
+print("Using pygtkcompat and Gst from gi")
+
+pygtkcompat.enable() 
+pygtkcompat.enable_gtk(version='3.0')
+
+import gtk
 
 from std_msgs.msg import String
 from std_srvs.srv import *
 import os
 import commands
 
-class recognizer(object):
-    """ GStreamer based speech recognizer. """
+from pprint import pprint
+
+LOG_ACTIVE=False
+
+class Recognizer(object):
+    """GStreamer/PocketSphinx Demo Application"""
 
     def __init__(self):
-        # Start node
+     
+        """Initialize ROS components"""
+        self.init_ros()
+        
+        """Initialize gstreamer components"""
+        self.init_gst()
+        
+
+    
+    """Method: Initialize ROS components"""
+    def init_ros(self):
         rospy.init_node("recognizer")
 
         self._device_name_param = "~mic_name"  # Find the name of your microphone by typing pacmd list-sources in the terminal
@@ -57,33 +85,30 @@ class recognizer(object):
             self.launch_config = 'gconfaudiosrc'
 
         rospy.loginfo("Launch config: %s", self.launch_config)
-
-        self.launch_config += " ! audioconvert ! audioresample " \
-                            + '! vader name=vad auto-threshold=true ' \
-                            + '! pocketsphinx name=asr ! fakesink'
-
+        
         # Configure ROS settings
         self.started = False
         rospy.on_shutdown(self.shutdown)
-        self.pub = rospy.Publisher('~output', String)
+        self.pub = rospy.Publisher('~output', String, queue_size=10)
         rospy.Service("~start", Empty, self.start)
         rospy.Service("~stop", Empty, self.stop)
 
         if rospy.has_param(self._lm_param) and rospy.has_param(self._dic_param):
-            self.start_recognizer()
+            rospy.loginfo("We are running the recognizer with the roslaunch parameters")
         else:
-            rospy.logwarn("lm and dic parameters need to be set to start recognizer.")
-
-    def start_recognizer(self):
-        rospy.loginfo("Starting recognizer... ")
-
-        self.pipeline = gst.parse_launch(self.launch_config)
+            rospy.logwarn("lm and dic parameters need to be set to start recognizer for your system.")
+            rospy.logwarn("We are running with the parameters by default.")
+          
+            
+        
+    def init_gst(self):
+        """Initialize the speech components"""
+        self.pipeline = gst.parse_launch('autoaudiosrc ! audioconvert ! audioresample '
+                                         + '! pocketsphinx name=asr lm=/usr/share/pocketsphinx/model/en-us/en-us.lm.bin dict=/usr/share/pocketsphinx/model/en-us/cmudict-en-us.dict ! fakesink')
+        
         self.asr = self.pipeline.get_by_name('asr')
-        self.asr.connect('partial_result', self.asr_partial_result)
-        self.asr.connect('result', self.asr_result)
-        self.asr.set_property('configured', True)
-        self.asr.set_property('dsratio', 1)
-
+        
+        
         # Configure language model
         if rospy.has_param(self._lm_param):
             lm = rospy.get_param(self._lm_param)
@@ -91,21 +116,67 @@ class recognizer(object):
             rospy.logerr('Recognizer not started. Please specify a language model file.')
             return
 
+        # Configure Dictionary
         if rospy.has_param(self._dic_param):
             dic = rospy.get_param(self._dic_param)
         else:
             rospy.logerr('Recognizer not started. Please specify a dictionary.')
             return
-
+        
+        
         self.asr.set_property('lm', lm)
         self.asr.set_property('dict', dic)
+        self.asr.set_property('configured', True)
+        self.asr.set_property('dsratio', 1)
+        
+        
+        bus = self.pipeline.get_bus()
+        bus.add_signal_watch()
+        bus.connect('message::element', self.element_message)
+        
+        self.pipeline.set_state(gst.State.PLAYING)
+       
+        
+        
 
-        self.bus = self.pipeline.get_bus()
-        self.bus.add_signal_watch()
-        self.bus_id = self.bus.connect('message::application', self.application_message)
-        self.pipeline.set_state(gst.STATE_PLAYING)
-        self.started = True
+    def element_message(self, bus, msg):
+        """Receive element messages from the bus."""
+        msgtype = msg.get_structure().get_name()
+        
+        if LOG_ACTIVE:
+            rospy.loginfo("XXXXX > %s",msg.get_structure().get_value('timestamp'))
+            rospy.loginfo("XXXXX > %s",msg.get_structure().get_value('final'))
+            rospy.loginfo("XXXXX > %s",msg.get_structure().get_value('hypothesis'))
+            rospy.loginfo("XXXXX > %f",msg.get_structure().get_value('confidence'))
+            #rospy.loginfo(msg.get_structure().get_value('confidence'))
+            #print dir(msg.get_structure())
+            #pprint (vars(msg))
+        
+        
+        if msgtype != 'pocketsphinx':
+            return
 
+        if msg.get_structure().get_value('final'):
+            self.final_result(msg.get_structure().get_value('hypothesis'), msg.get_structure().get_value('confidence'))
+        elif msg.get_structure().get_value('hypothesis'):
+            self.partial_result(msg.get_structure().get_value('hypothesis'))
+
+
+    def partial_result(self, hyp):
+        msg = String()
+        msg.data = str(hyp.lower())
+        rospy.loginfo("Partial > %s", msg.data)
+        
+
+    def final_result(self, hyp, confidence):
+        """ Insert the final result. """
+        msg = String()
+        msg.data = str(hyp.lower())
+        rospy.loginfo("Final > %s",msg.data)
+        self.pub.publish(msg)
+        
+          
+            
     def pulse_index_from_name(self, name):
         output = commands.getstatusoutput("pacmd list-sources | grep -B 1 'name: <" + name + ">' | grep -o -P '(?<=index: )[0-9]*'")
 
@@ -113,7 +184,6 @@ class recognizer(object):
             return output[1]
         else:
             raise Exception("Error. pulse index doesn't exist for name: " + name)
-
     def stop_recognizer(self):
         if self.started:
             self.pipeline.set_state(gst.STATE_NULL)
@@ -139,41 +209,12 @@ class recognizer(object):
         self.stop_recognizer()
         rospy.loginfo("recognizer stopped")
         return EmptyResponse()
-
-    def asr_partial_result(self, asr, text, uttid):
-        """ Forward partial result signals on the bus to the main thread. """
-        struct = gst.Structure('partial_result')
-        struct.set_value('hyp', text)
-        struct.set_value('uttid', uttid)
-        asr.post_message(gst.message_new_application(asr, struct))
-
-    def asr_result(self, asr, text, uttid):
-        """ Forward result signals on the bus to the main thread. """
-        struct = gst.Structure('result')
-        struct.set_value('hyp', text)
-        struct.set_value('uttid', uttid)
-        asr.post_message(gst.message_new_application(asr, struct))
-
-    def application_message(self, bus, msg):
-        """ Receive application messages from the bus. """
-        msgtype = msg.structure.get_name()
-        if msgtype == 'partial_result':
-            self.partial_result(msg.structure['hyp'], msg.structure['uttid'])
-        if msgtype == 'result':
-            self.final_result(msg.structure['hyp'], msg.structure['uttid'])
-
-    def partial_result(self, hyp, uttid):
-        """ Delete any previous selection, insert text and select it. """
-        rospy.logdebug("Partial: " + hyp)
-
-    def final_result(self, hyp, uttid):
-        """ Insert the final result. """
-        msg = String()
-        msg.data = str(hyp.lower())
-        rospy.loginfo(msg.data)
-        self.pub.publish(msg)
+    
 
 if __name__ == "__main__":
-    start = recognizer()
-    gtk.main()
-
+    try:
+        rospy.loginfo("Starting ....")
+        start = Recognizer()
+        gtk.main()
+    except rospy.ROSInterruptException:
+        pass
