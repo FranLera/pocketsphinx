@@ -56,3 +56,5 @@ References>
 1. [Michael Ferguson](https://github.com/mikeferguson/pocketsphinx)
 2. [Using PocketSphinx with GStreamer and Python](http://cmusphinx.sourceforge.net/wiki/gstreamer)
 3. [Vadimreutskiy](https://github.com/vadimreutskiy/pocketsphinx)
+4. [Python GStreamer Tutorial](http://brettviren.github.io/pygst-tutorial-org/pygst-tutorial.pdf)
+5. [CMU pocketsphinx](https://github.com/cmusphinx/pocketsphinx/blob/master/)
