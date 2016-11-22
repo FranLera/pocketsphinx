@@ -25,7 +25,15 @@ FAQ
         ```
             sudo apt-get install xvfb
         ```   
-        
+  
+    * Now, you can add this in your .bashrc or run in a new terminal:
+
+        ``` 
+            Xvfb :1 &        
+        ```         
+    
+    
+    
     * Now, in the terminal where you are (ros)launching the pocksphinx
   
         ``` 
