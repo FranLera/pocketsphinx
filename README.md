@@ -27,14 +27,22 @@ FAQ
         ```   
         
     * Now, in the terminal where you are (ros)launching the pocksphinx
-    
+  
         ``` 
             export DISPLAY=:1        
         ```   
         
-2. 
-  
 
+2. How to get the values by default of the gstreamer and the possible parameters for your application
+        ``` 
+            gst-inspect-1.0 pocketsphinx
+        ``` 
+
+3. The value given as a confidence, seems not useful and maybe is not supported through [gstreamer version](https://sourceforge.net/p/cmusphinx/discussion/help/thread/0197b952/?limit=25) 
+The trick will be to move to the pocketsphinx version instead of using this.
+The example provided in [Pocketsphinx Repo shows how it works ](https://github.com/cmusphinx/pocketsphinx/blob/master/swig/python/test/decoder_test.py) seems similar to that that most people need.
+
+        
 References>
 
 1. [Michael Ferguson](https://github.com/mikeferguson/pocketsphinx)
