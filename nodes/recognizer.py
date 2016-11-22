@@ -14,6 +14,10 @@ recognizer.py is a wrapper for pocketsphinx.
     ~mic_name - set the pulsesrc device name for the microphone input.
                 e.g. a Logitech G35 Headset has the following device name: alsa_input.usb-Logitech_Logitech_G35_Headset-00-Headset_1.analog-mono
                 To list audio device info on your machine, in a terminal type: pacmd list-sources
+    ~hmm - directory name of acoustic model.
+                By default it would be "/usr/share/pocketsphinx/model/hmm/en_US/hub4wsj_sc_8k"
+                You can download custom acoustic models from CMU Sphix web site: https://sourceforge.net/projects/cmusphinx/files/Acoustic%20and%20Language%20Models/
+                
   publications:
     ~output (std_msgs/String) - text output
   services:
@@ -71,6 +75,7 @@ class Recognizer(object):
         self._device_name_param = "~mic_name"  # Find the name of your microphone by typing pacmd list-sources in the terminal
         self._lm_param = "~lm"
         self._dic_param = "~dict"
+        self._hmm_param = "~hmm"
 
         # Configure mics with gstreamer launch config
         if rospy.has_param(self._device_name_param):
@@ -112,20 +117,27 @@ class Recognizer(object):
         # Configure language model
         if rospy.has_param(self._lm_param):
             lm = rospy.get_param(self._lm_param)
+            self.asr.set_property('lm', lm)
         else:
-            rospy.logerr('Recognizer not started. Please specify a language model file.')
-            return
+            rospy.logerr('Not language model provided. Recognizer started with default parameters.')
+
 
         # Configure Dictionary
         if rospy.has_param(self._dic_param):
             dic = rospy.get_param(self._dic_param)
+            self.asr.set_property('dict', dic)
         else:
-            rospy.logerr('Recognizer not started. Please specify a dictionary.')
-            return
+            rospy.logerr('Not Dictionary provided. Recognizer started with default parameters.')
+
+        
+        # Configure acoustic model
+        if rospy.has_param(self._hmm_param):
+            hmm = rospy.get_param(self._hmm_param)
+            self.asr.set_property('hmm', hmm)
+            
         
         
-        self.asr.set_property('lm', lm)
-        self.asr.set_property('dict', dic)
+        
         self.asr.set_property('configured', True)
         self.asr.set_property('dsratio', 1)
         
@@ -148,9 +160,6 @@ class Recognizer(object):
             rospy.loginfo("XXXXX > %s",msg.get_structure().get_value('final'))
             rospy.loginfo("XXXXX > %s",msg.get_structure().get_value('hypothesis'))
             rospy.loginfo("XXXXX > %f",msg.get_structure().get_value('confidence'))
-            #rospy.loginfo(msg.get_structure().get_value('confidence'))
-            #print dir(msg.get_structure())
-            #pprint (vars(msg))
         
         
         if msgtype != 'pocketsphinx':
@@ -159,20 +168,25 @@ class Recognizer(object):
         if msg.get_structure().get_value('final'):
             self.final_result(msg.get_structure().get_value('hypothesis'), msg.get_structure().get_value('confidence'))
         elif msg.get_structure().get_value('hypothesis'):
-            self.partial_result(msg.get_structure().get_value('hypothesis'))
+            self.partial_result(msg.get_structure().get_value('hypothesis'), msg.get_structure().get_value('confidence'))
 
 
-    def partial_result(self, hyp):
-        msg = String()
-        msg.data = str(hyp.lower())
-        rospy.loginfo("Partial > %s", msg.data)
+    def partial_result(self, hyp, confidence):
+        if LOG_ACTIVE:
+            rospy.loginfo("%s = Partial :: conf(%d)", hyp, confidence)
+        else:    
+            rospy.loginfo("Partial = %s",hyp)
+        
         
 
     def final_result(self, hyp, confidence):
         """ Insert the final result. """
         msg = String()
         msg.data = str(hyp.lower())
-        rospy.loginfo("Final > %s",msg.data)
+        if LOG_ACTIVE:
+            rospy.loginfo("%s = Final :: conf (%d)", hyp, confidence)
+        else:    
+            rospy.loginfo("Final = %s",msg.data)
         self.pub.publish(msg)
         
           
